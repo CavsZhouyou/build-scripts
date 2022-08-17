@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+
+/*
+ * @Author: xiaotian.zy
+ * @Descriptions: 命令行主文件，用于 build、start、test 三个子命令注册
+ * @TodoList: 无
+ * @Date: 2022-08-17 16:22:11
+ * @Last Modified by: xiaotian.zy
+ * @Last Modified time: 2022-08-17 16:25:22
+ */
+
 const program = require('commander');
 const packageInfo = require('../package.json');
 const checkNodeVersion = require('../lib/utils/checkNodeVersion');
@@ -12,6 +22,10 @@ const test = require('./test');
   checkNodeVersion(packageInfo.engines.node);
 
   program.version(packageInfo.version).usage('<command> [options]');
+
+  /**
+   * 命令注册
+   */
 
   program
     .command('build')
@@ -39,6 +53,10 @@ const test = require('./test');
 
   program.parse(process.argv);
 
+  /**
+   * 判断是否有存在运行的命令，如果有则退出已执行命令
+   */
+
   const proc = program.runningCommand;
 
   if (proc) {
@@ -48,6 +66,9 @@ const test = require('./test');
     });
   }
 
+  /**
+   * 如果无子命令，展示 help 信息
+   */
   const subCmd = program.args[0];
   if (!subCmd) {
     program.help();

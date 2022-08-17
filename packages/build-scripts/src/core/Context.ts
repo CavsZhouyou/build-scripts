@@ -1,3 +1,12 @@
+/*
+ * @Author: xiaotian.zy 
+ * @Descriptions: 插件封装机制核心
+ * @TodoList: 无
+ * @Date: 2022-08-17 16:31:47 
+ * @Last Modified by: xiaotian.zy
+ * @Last Modified time: 2022-08-17 20:31:49
+ */
+
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import chalk from 'chalk';
@@ -303,25 +312,34 @@ const mergeConfig = <T>(currentValue: T, newValue: T): T => {
 };
 
 class Context {
+  // 当前执行命令
   public command: CommandName;
 
+  // 命令参数
   public commandArgs: CommandArgs;
 
+  // 项目执行目录
   public rootDir: string;
 
+  // webpack 实例
   public webpack: IWebpack;
 
+  // 当前项目 package.json 值
   public pkg: Json;
 
+  // 用户配置
   public userConfig: IUserConfig;
 
+  // 原始用户配置，build.json 或 build.config.js 文件值
   public originalUserConfig: IUserConfig;
 
+  // 项目执行插件
   public plugins: IPluginInfo[];
 
+  // 外部传入的执行配置
   private options: IContextOptions;
 
-  // 通过registerTask注册，存放初始的webpack-chain配置
+  // 通过 registerTask 注册，存放初始的 webpack-chain 配置
   private configArr: ITaskConfig[];
 
   private modifyConfigFns: IOnGetWebpackConfigArgs[];
@@ -336,10 +354,13 @@ class Context {
     [name: string]: IOnHookCallback[];
   };
 
+  // 内部值，用于插件间变量共享
   private internalValue: IHash<any>;
 
+  // userConfig 注册配置项
   private userConfigRegistration: IUserConfigRegistration;
 
+  // cliOption 注册配置项
   private cliOptionRegistration: ICliOptionRegistration;
 
   private methodRegistration: { [name: string]: [IMethodFunction, any] };
@@ -348,6 +369,7 @@ class Context {
 
   public commandModules: ICommandModules = {};
 
+  // 默认值初始化
   constructor(options: IContextOptions) {
     const {
       command,
@@ -379,11 +401,14 @@ class Context {
     this.methodRegistration = {};
     this.cancelTaskNames = [];
 
+    // 获取项目的 package.json 文件
     this.pkg = this.getProjectFile(PKG_FILE);
     // register builtin options
+    // 注册 cli options
     this.registerCliOption(BUILTIN_CLI_OPTIONS);
   }
 
+  // 配置注册，包括 cliOption 和 userConfig 两种
   private registerConfig = (
     type: string,
     args: MaybeArray<IUserConfigArgs> | MaybeArray<ICliOptionArgs>,
@@ -399,13 +424,16 @@ class Context {
     }
     const configArr = _.isArray(args) ? args : [args];
     configArr.forEach((conf): void => {
+      // 执行名称格式化函数
       const confName = parseName ? parseName(conf.name) : conf.name;
       if (this[registerKey][confName]) {
         throw new Error(`${conf.name} already registered in ${type}`);
       }
 
+      // 写入对应注册值
       this[registerKey][confName] = conf;
 
+      // 如果 userConfig 配置项有默认值，则先赋默认值
       // set default userConfig
       if (
         type === 'userConfig' &&
@@ -417,19 +445,28 @@ class Context {
     });
   };
 
+  // webpack 配置更改
   private async runConfigWebpack(
     fn: IUserConfigWebpack,
     configValue: JsonValue,
     ignoreTasks: string[] | null,
   ): Promise<void> {
+
+    // 遍历已注册的 webapck 任务
     for (const webpackConfigInfo of this.configArr) {
+
+      // webpack 任务名称
       const taskName = webpackConfigInfo.name;
+
+      // 忽略任务判断
       let ignoreConfig = false;
       if (Array.isArray(ignoreTasks)) {
         ignoreConfig = ignoreTasks.some(ignoreTask =>
           new RegExp(ignoreTask).exec(taskName),
         );
       }
+      
+      // 执行对应的 webpack 配置更新函数
       if (!ignoreConfig) {
         const userConfigContext: UserConfigContext = {
           ..._.pick(this, PLUGIN_CONTEXT_KEY),
@@ -441,6 +478,7 @@ class Context {
     }
   }
 
+  // 文件内容获取，工具函数
   private getProjectFile = (fileName: string): Json => {
     const configPath = path.resolve(this.rootDir, fileName);
 
@@ -459,6 +497,7 @@ class Context {
     return config;
   };
 
+  // 获取用户配置，一般为 build.json 和 build.config.js 的文件值
   private getUserConfig = async (): Promise<IUserConfig> => {
     const { config } = this.commandArgs;
     let configPath = '';
@@ -467,6 +506,7 @@ class Context {
         ? config
         : path.resolve(this.rootDir, config);
     } else {
+      // golb 文件查询，使用第一个匹配文件
       const [defaultUserConfig] = await fg(USER_CONFIG_FILE, { cwd: this.rootDir, absolute: true });
       configPath = defaultUserConfig;
     }
@@ -492,9 +532,11 @@ class Context {
       process.exit(1);
     }
 
+    // mode 配置合并
     return this.mergeModeConfig(userConfig);
   };
 
+  // 合并 mode 配置（mode 可以理解为不同执行模式）
   private mergeModeConfig = (userConfig: IUserConfig): IUserConfig => {
     const { mode } = this.commandArgs;
     // modify userConfig by userConfig.modeConfig
@@ -503,11 +545,16 @@ class Context {
       mode &&
       (userConfig.modeConfig as IModeConfig)[mode]
     ) {
+
+      // 获取对应 mode 的插件和基本配置
       const {
         plugins,
         ...basicConfig
       } = (userConfig.modeConfig as IModeConfig)[mode] as IUserConfig;
+
+      // 顶层插件配置
       const userPlugins = [...userConfig.plugins];
+
       if (Array.isArray(plugins)) {
         const pluginKeys = userPlugins.map(pluginInfo => {
           return Array.isArray(pluginInfo) ? pluginInfo[0] : pluginInfo;
@@ -518,9 +565,11 @@ class Context {
             : [pluginInfo];
           const pluginIndex = pluginKeys.indexOf(pluginName);
           if (pluginIndex > -1) {
+            // 如果顶层插件配置存在该插件，则用 mode 的插件配置覆盖顶层配置
             // overwrite plugin info by modeConfig
             userPlugins[pluginIndex] = pluginInfo;
           } else {
+            // 如果顶层插件配置不存在该插件，则直接加在最后
             // push new plugin added by modeConfig
             userPlugins.push(pluginInfo);
           }
@@ -531,22 +580,32 @@ class Context {
     return userConfig;
   };
 
+  // plugins 路径和内容解析
   private resolvePlugins = (builtInPlugins: IPluginList): IPluginInfo[] => {
     const userPlugins = [
+      // 外部传入插件
       ...builtInPlugins,
+      // build.json 中的插件
       ...(this.userConfig.plugins || []),
     ].map(
       (pluginInfo): IPluginInfo => {
         let fn;
+
+        // 如果直接是内联函数的形式
         if (_.isFunction(pluginInfo)) {
           return {
             fn: pluginInfo,
             options: {},
           };
         }
+
+        // 如果是数组形式，[插件名,插件配置]
         const plugins: [string, IPluginOptions] = Array.isArray(pluginInfo)
           ? pluginInfo
           : [pluginInfo, undefined];
+
+
+        // 插件路径解析，有的是本地的自定义插件
         const pluginResolveDir = process.env.EXTRA_PLUGIN_DIR
           ? [process.env.EXTRA_PLUGIN_DIR, this.rootDir]
           : [this.rootDir];
@@ -556,6 +615,7 @@ class Context {
         const options = plugins[1];
 
         try {
+          // 获取插件内容
           fn = require(pluginPath); // eslint-disable-line
         } catch (err) {
           log.error('CONFIG', `Fail to load plugin ${pluginPath}`);
@@ -564,9 +624,13 @@ class Context {
         }
 
         return {
+          // 插件名称
           name: plugins[0],
+          // 插件路径
           pluginPath,
+          // 插件函数
           fn: fn.default || fn || ((): void => {}),
+          // 插件配置
           options,
         };
       },
@@ -575,6 +639,7 @@ class Context {
     return userPlugins;
   };
 
+  // 所有获取插件信息（仅部分属性）
   public getAllPlugin: IGetAllPlugin = (
     dataKeys = ['pluginPath', 'options', 'name'],
   ) => {
@@ -586,6 +651,7 @@ class Context {
     );
   };
 
+  // 注册 webpack 任务，主要是 webpackChain
   public registerTask: IRegisterTask = (name, chainConfig) => {
     const exist = this.configArr.find((v): boolean => v.name === name);
     if (!exist) {
@@ -599,6 +665,7 @@ class Context {
     }
   };
 
+  // 获取加入 cancel 的 webpack 任务
   public cancelTask: ICancelTask = name => {
     if (this.cancelTaskNames.includes(name)) {
       log.info('TASK', `task ${name} has already been canceled`);
@@ -607,6 +674,7 @@ class Context {
     }
   };
 
+  // 注册公用方法
   public registerMethod: IRegisterMethod = (name, fn, options) => {
     if (this.methodRegistration[name]) {
       throw new Error(`[Error] method '${name}' already registered`);
@@ -623,8 +691,10 @@ class Context {
         methodName
       ];
       if (methodOptions?.pluginName) {
+        // 传入 pluginName
         return (registerMethod as IMethodCurry)(pluginName)(...args);
       } else {
+        // 直接调用
         return (registerMethod as IMethodRegistration)(...args);
       }
     } else {
@@ -632,22 +702,28 @@ class Context {
     }
   };
 
+  // 判断方法是否已注册
   public hasMethod: IHasMethod = name => {
     return !!this.methodRegistration[name];
   };
 
+  // 修改用户配置
   public modifyUserConfig: IModifyUserConfig = (configKey, value, options) => {
     const errorMsg = 'config plugins is not support to be modified';
     const { deepmerge: mergeInDeep } = options || {};
     if (typeof configKey === 'string') {
+      // plugins 不允许修改
       if (configKey === 'plugins') {
         throw new Error(errorMsg);
       }
+      // 通过 . 来实现递归属性调用 a.b.c => a: { b: { c: 1 } }
       const configPath = configKey.split('.');
       const originalValue = _.get(this.userConfig, configPath);
+      // 获取新的 value 值
       const newValue = typeof value !== 'function' ? value : value(originalValue);
       _.set(this.userConfig, configPath, mergeInDeep ? mergeConfig<JsonValue>(originalValue, newValue): newValue);
     } else if (typeof configKey === 'function') {
+      // 直接计算一个完整的 userConfig
       const modifiedValue = configKey(this.userConfig);
       if (_.isPlainObject(modifiedValue)) {
         if (Object.prototype.hasOwnProperty.call(modifiedValue, 'plugins')) {
@@ -655,6 +731,7 @@ class Context {
           log.verbose('[modifyUserConfig]', 'delete plugins of user config while it is not support to be modified');
           delete modifiedValue.plugins;
         }
+        // 设置新的 value 值
         Object.keys(modifiedValue).forEach(modifiedConfigKey => {
           const originalValue = this.userConfig[modifiedConfigKey];
           this.userConfig[modifiedConfigKey] = mergeInDeep ? mergeConfig<JsonValue>(originalValue, modifiedValue[modifiedConfigKey]) : modifiedValue[modifiedConfigKey] ;
@@ -665,28 +742,33 @@ class Context {
     }
   };
 
+  // 修改用户配置注册
   public modifyConfigRegistration: IModifyConfigRegistration = (
     ...args: IModifyRegisteredConfigArgs
   ) => {
     this.modifyConfigRegistrationCallbacks.push(args);
   };
 
+  // 修改 cli 配置注册
   public modifyCliRegistration: IModifyCliRegistration = (
     ...args: IModifyRegisteredCliArgs
   ) => {
     this.modifyCliRegistrationCallbacks.push(args);
   };
 
+  // 获取所有的 webpack 任务
   public getAllTask = (): string[] => {
     return this.configArr.map(v => v.name);
   };
 
+  // 添加 webpack 配置获取监听函数，主要用于 webpack 配置修改
   public onGetWebpackConfig: IOnGetWebpackConfig = (
     ...args: IOnGetWebpackConfigArgs
   ) => {
     this.modifyConfigFns.push(args);
   };
 
+  // 添加 jest 配置获取监听函数，主要用于 jest 配置修改
   public onGetJestConfig: IOnGetJestConfig = (fn: IJestConfigFunction) => {
     this.modifyJestConfig.push(fn);
   };
@@ -699,6 +781,7 @@ class Context {
     return result;
   };
 
+  // 事件监听函数注册
   public onHook: IOnHook = (key, fn) => {
     if (!Array.isArray(this.eventHooks[key])) {
       this.eventHooks[key] = [];
@@ -715,14 +798,17 @@ class Context {
     }
   };
 
+  // 设置内部共享值
   public setValue = (key: string | number, value: any): void => {
     this.internalValue[key] = value;
   };
 
+  // 获取内部共享值
   public getValue = (key: string | number): any => {
     return this.internalValue[key];
   };
 
+  // 注册用户配置
   public registerUserConfig = (args: MaybeArray<IUserConfigArgs>): void => {
     this.registerConfig('userConfig', args);
   };
@@ -732,42 +818,67 @@ class Context {
     return Object.keys(this[mappedType] || {}).includes(name);
   };
 
+  // 注册 cliOtion 配置
   public registerCliOption = (args: MaybeArray<ICliOptionArgs>): void => {
     this.registerConfig('cliOption', args, name => {
+      // 用于将属性名称转换为驼峰格式
       return camelCase(name, { pascalCase: false });
     });
   };
 
+  // 配置解析
   public resolveConfig = async (): Promise<void> => {
+
+    /**
+     * userConfig 解析
+     */
     this.userConfig = await this.getUserConfig();
     // shallow copy of userConfig while userConfig may be modified
     this.originalUserConfig = { ...this.userConfig };
+
+    /**
+     * plugins 解析
+     */
     const { plugins = [], getBuiltInPlugins = () => []} = this.options;
     // run getBuiltInPlugins before resolve webpack while getBuiltInPlugins may add require hook for webpack
     const builtInPlugins: IPluginList = [
       ...plugins,
       ...getBuiltInPlugins(this.userConfig),
     ];
+
+    /**
+     * 自定义 webpack 引用 
+     */
     // custom webpack
     const webpackInstancePath = this.userConfig.customWebpack
       ? require.resolve('webpack', { paths: [this.rootDir] })
       : 'webpack';
     this.webpack = require(webpackInstancePath);
     if (this.userConfig.customWebpack) {
+      // 劫持 webpack 解析
       hijackWebpackResolve(this.webpack, this.rootDir);
     }
+
+    // 插件校验
     this.checkPluginValue(builtInPlugins); // check plugins property
+
+    // 插件内容解析
     this.plugins = this.resolvePlugins(builtInPlugins);
   }
 
+  // 插件执行
   private runPlugins = async (): Promise<void> => {
     for (const pluginInfo of this.plugins) {
       const { fn, options, name: pluginName } = pluginInfo;
 
+      // context 仅有部分属性需要传到插件里
       const pluginContext = _.pick(this, PLUGIN_CONTEXT_KEY);
+
+      // 执行注册方法，科里化插件名称
       const applyMethod: IApplyMethodAPI = (methodName, ...args) => {
         return this.applyMethod([methodName, pluginName], ...args);
       };
+
       const pluginAPI = {
         log,
         context: pluginContext,
@@ -795,6 +906,7 @@ class Context {
     }
   };
 
+  // plugin 属性校验
   private checkPluginValue = (plugins: IPluginList): void => {
     let flag;
     if (!_.isArray(plugins)) {
@@ -815,6 +927,7 @@ class Context {
     }
   };
 
+  // 修改已注册用户配置
   private runConfigModification = async (): Promise<void> => {
     const callbackRegistrations = [
       'modifyConfigRegistrationCallbacks',
@@ -855,11 +968,14 @@ class Context {
     });
   };
 
+  // 用户配置执行，用于 webpack 配置更新
   private runUserConfig = async (): Promise<void> => {
     for (const configInfoKey in this.userConfig) {
+      // plugins 和 customWebpack 属性无法注册
       if (!['plugins', 'customWebpack'].includes(configInfoKey)) {
         const configInfo = this.userConfigRegistration[configInfoKey];
 
+        // 属性未注册
         if (!configInfo) {
           throw new Error(
             `[Config File] Config key '${configInfoKey}' is not supported`,
@@ -869,6 +985,7 @@ class Context {
         const { name, validation, ignoreTasks } = configInfo;
         const configValue = this.userConfig[name];
 
+        // 属性值校验 
         if (validation) {
           let validationInfo;
           if (_.isString(validation)) {
@@ -895,6 +1012,7 @@ class Context {
           }
         }
 
+        // 将用户值更新到对应的 webapck 配置上
         if (configInfo.configWebpack) {
           // eslint-disable-next-line no-await-in-loop
           await this.runConfigWebpack(
@@ -972,6 +1090,7 @@ class Context {
     }
   };
 
+  // 配置初始化
   public setUp = async (): Promise<ITaskConfig[]> => {
     await this.resolveConfig();
     await this.runPlugins();

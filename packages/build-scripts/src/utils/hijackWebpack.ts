@@ -1,3 +1,12 @@
+/*
+ * @Author: xiaotian.zy
+ * @Descriptions: webpack 引用劫持
+ * @TodoList: 无
+ * @Date: 2022-08-17 17:25:42
+ * @Last Modified by: xiaotian.zy
+ * @Last Modified time: 2022-08-17 17:25:42
+ */
+
 import Module = require('module');
 
 interface IOptions {

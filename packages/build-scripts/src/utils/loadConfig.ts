@@ -1,3 +1,11 @@
+/*
+ * @Author: xiaotian.zy
+ * @Descriptions: userConfig 配置（多种格式）加载，工具函数
+ * @TodoList: 无
+ * @Date: 2022-08-17 16:50:09
+ * @Last Modified by: xiaotian.zy
+ * @Last Modified time: 2022-08-17 16:54:24
+ */
 import * as path from 'path';
 import * as fs from 'fs';
 import { Logger } from 'npmlog';
@@ -8,7 +16,10 @@ interface INodeModuleWithCompile extends NodeModule {
   _compile(code: string, filename: string): any;
 }
 
-async function loadConfig<T>(filePath: string, log: Logger): Promise<T|undefined> {
+async function loadConfig<T>(
+  filePath: string,
+  log: Logger,
+): Promise<T | undefined> {
   const start = Date.now();
   const isJson = filePath.endsWith('.json');
   const isTS = filePath.endsWith('.ts');
@@ -31,18 +42,25 @@ async function loadConfig<T>(filePath: string, log: Logger): Promise<T|undefined
       fs.writeFileSync(tempFile, code);
       try {
         // eslint-disable-next-line no-eval
-        userConfig = (await eval(`import(tempFile + '?t=${Date.now()}')`)).default;
-      } catch(err) {
+        userConfig = (await eval(`import(tempFile + '?t=${Date.now()}')`))
+          .default;
+      } catch (err) {
         fs.unlinkSync(tempFile);
         throw err;
       }
       // delete the file after eval
       fs.unlinkSync(tempFile);
-      log.verbose('[config]',`TS + native esm module loaded in ${Date.now() - start}ms, ${fileUrl}`);
+      log.verbose(
+        '[config]',
+        `TS + native esm module loaded in ${Date.now() - start}ms, ${fileUrl}`,
+      );
     } else {
       // eslint-disable-next-line no-eval
       userConfig = (await eval(`import(fileUrl + '?t=${Date.now()}')`)).default;
-      log.verbose('[config]',`native esm config loaded in ${Date.now() - start}ms, ${fileUrl}`);
+      log.verbose(
+        '[config]',
+        `native esm config loaded in ${Date.now() - start}ms, ${fileUrl}`,
+      );
     }
   }
 
@@ -86,7 +104,10 @@ async function loadConfig<T>(filePath: string, log: Logger): Promise<T|undefined
       throw err;
     }
     fs.unlinkSync(tempFile);
-    log.verbose('[config]', `bundled module file loaded in ${Date.now() - start}m`);
+    log.verbose(
+      '[config]',
+      `bundled module file loaded in ${Date.now() - start}m`,
+    );
   }
   return userConfig;
 }
