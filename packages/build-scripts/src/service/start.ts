@@ -15,11 +15,14 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
   const configArr = context.getWebpackConfig();
   const { command, commandArgs, webpack, applyHook } = context;
   await applyHook(`before.${command}.load`, { args: commandArgs, webpackConfig: configArr });
+
+  // eject 为 true，直接返回配置
   // eject config
   if (eject) {
     return configArr;
   }
 
+  // 没有 webapck 任务注册
   if (!configArr.length) {
     const errorMsg = 'No webpack config found.';
     log.warn('CONFIG', errorMsg);
@@ -27,6 +30,7 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
     return;
   }
   
+  // dev server 配置获取和合并，看上去会用最后一个任务的配置
   let serverUrl = '';
   let devServerConfig: DevServerConfig = {
     port: commandArgs.port || 3333,
@@ -46,12 +50,14 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
     }
   }
 
+  // webpack 配置获取
   const webpackConfig = configArr.map(v => v.chainConfig.toConfig());
   await applyHook(`before.${command}.run`, {
     args: commandArgs,
     config: webpackConfig,
   });
 
+  // webpack 初始化
   let compiler;
   try {
     compiler = webpack(webpackConfig);
@@ -60,6 +66,8 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
     await applyHook(`error`, { err });
     throw err;
   }
+
+  // 本地预览链接
   const protocol = devServerConfig.https ? 'https' : 'http';
   const urls = prepareURLs(
     protocol,
@@ -68,6 +76,7 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
   );
   serverUrl = urls.localUrlForBrowser;
 
+  // 记录第一次编译状态
   let isFirstCompile = true;
   // typeof(stats) is webpack.compilation.MultiStats
   compiler.hooks.done.tap('compileHook', async stats => {
@@ -93,6 +102,7 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const DevServer = require('webpack-dev-server');
 
+  // devServer 初始化
   // static method getFreePort in v4
   if (DevServer.getFreePort) {
     devServer = new DevServer(devServerConfig, compiler);

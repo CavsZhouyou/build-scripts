@@ -342,8 +342,10 @@ class Context {
   // 通过 registerTask 注册，存放初始的 webpack-chain 配置
   private configArr: ITaskConfig[];
 
+  // webpack 配置修改函数注册
   private modifyConfigFns: IOnGetWebpackConfigArgs[];
 
+  // jest 配置修改函数注册
   private modifyJestConfig: IJestConfigFunction[];
 
   private modifyConfigRegistrationCallbacks: IModifyRegisteredConfigArgs[];
@@ -789,6 +791,7 @@ class Context {
     this.eventHooks[key].push(fn);
   };
 
+  // 事件监听函数执行，相当于 emit
   public applyHook = async (key: string, opts = {}): Promise<void> => {
     const hooks = this.eventHooks[key] || [];
 
@@ -1025,6 +1028,7 @@ class Context {
     }
   };
 
+  // 命令行配置执行
   private runCliOption = async (): Promise<void> => {
     for (const cliOpt in this.commandArgs) {
       // allow all jest option when run command test
@@ -1048,6 +1052,7 @@ class Context {
     }
   };
 
+  // 执行 webpack 配置修改
   private runWebpackFunctions = async (): Promise<void> => {
     this.modifyConfigFns.forEach(([name, func]) => {
       const isAll = _.isFunction(name);
@@ -1081,6 +1086,7 @@ class Context {
     this.commandModules[moduleKey] = module;
   }
 
+  // 获取对应命令的执行逻辑
   public getCommandModule (options: { command: CommandName; commandArgs: CommandArgs; userConfig: IUserConfig }): CommandModule<any> {
     const { command } = options;
     if (this.commandModules[command]) {
@@ -1090,7 +1096,7 @@ class Context {
     }
   };
 
-  // 配置初始化
+  // webpack 任务和配置初始化
   public setUp = async (): Promise<ITaskConfig[]> => {
     await this.resolveConfig();
     await this.runPlugins();
@@ -1098,6 +1104,8 @@ class Context {
     await this.runUserConfig();
     await this.runWebpackFunctions();
     await this.runCliOption();
+
+    // 过滤被取消掉的 webpack 任务
     // filter webpack config by cancelTaskNames
     this.configArr = this.configArr.filter(
       config => !this.cancelTaskNames.includes(config.name),
@@ -1109,6 +1117,7 @@ class Context {
     return this.configArr;
   };
 
+  // 主逻辑执行
   public run = async <T, P>(options?: T): Promise<P> => {
     const { command, commandArgs } = this;
     log.verbose(

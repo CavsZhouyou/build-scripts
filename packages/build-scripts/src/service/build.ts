@@ -12,17 +12,22 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
   const configArr = context.getWebpackConfig();
   const { command, commandArgs, applyHook, rootDir, webpack: webpackInstance } = context;
   await applyHook(`before.${command}.load`, { args: commandArgs, webpackConfig: configArr });
+
+  // eject 直接返回配置
   // eject config
   if (eject) {
     return configArr;
   }
 
+  // 没有注册的 webpack 任务
   if (!configArr.length) {
     const errorMsg = 'No webpack config found.';
     log.warn('CONFIG', errorMsg);
     await applyHook(`error`, { err: new Error(errorMsg) });
     return;
   }
+
+  // 清理构建缓存
   // clear build directory
   const defaultPath = path.resolve(rootDir, 'build');
   configArr.forEach(v => {
@@ -37,12 +42,14 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
     }
   });
 
+  // 获取 webpack 配置
   const webpackConfig = configArr.map(v => v.chainConfig.toConfig());
   await applyHook(`before.${command}.run`, {
     args: commandArgs,
     config: webpackConfig,
   });
 
+  // 初始化 webpack 任务
   let compiler: webpack.MultiCompiler;
   try {
     compiler = webpackInstance(webpackConfig);
@@ -52,6 +59,7 @@ export = async function(context: Context, options?: IRunOptions): Promise<void |
     throw err;
   }
 
+  // 执行 webapck 任务
   const result = await new Promise((resolve, reject): void => {
     // typeof(stats) is webpack.compilation.MultiStats
     compiler.run((err, stats) => {

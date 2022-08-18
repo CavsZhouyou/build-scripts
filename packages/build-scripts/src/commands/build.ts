@@ -32,6 +32,6 @@ export = async function({
     getBuiltInPlugins,
   });
 
-  // WebpackService 执行
+  // WebpackService 执行，eject 是否返回 webpack 配置
   return (await service.run({ eject })) as BuildResult;
 };
