@@ -4,7 +4,7 @@
  * @TodoList: 无
  * @Date: 2022-08-17 16:31:47 
  * @Last Modified by: xiaotian.zy
- * @Last Modified time: 2022-08-17 20:31:49
+ * @Last Modified time: 2022-08-22 19:20:44
  */
 
 import * as path from 'path';
@@ -348,10 +348,13 @@ class Context {
   // jest 配置修改函数注册
   private modifyJestConfig: IJestConfigFunction[];
 
+  // 用户配置修改回调
   private modifyConfigRegistrationCallbacks: IModifyRegisteredConfigArgs[];
 
+  // cli options 修改回调
   private modifyCliRegistrationCallbacks: IModifyRegisteredConfigArgs[];
 
+  // hook 回调
   private eventHooks: {
     [name: string]: IOnHookCallback[];
   };
@@ -365,10 +368,13 @@ class Context {
   // cliOption 注册配置项
   private cliOptionRegistration: ICliOptionRegistration;
 
+  // 自定义方法注册
   private methodRegistration: { [name: string]: [IMethodFunction, any] };
 
+  // 已取消的 webpack 任务
   private cancelTaskNames: string[];
 
+  // 注册的命令功能模块
   public commandModules: ICommandModules = {};
 
   // 默认值初始化
@@ -419,11 +425,13 @@ class Context {
     const registerKey = `${type}Registration` as
       | 'userConfigRegistration'
       | 'cliOptionRegistration';
+
     if (!this[registerKey]) {
       throw new Error(
         `unknown register type: ${type}, use available types (userConfig or cliOption) instead`,
       );
     }
+
     const configArr = _.isArray(args) ? args : [args];
     configArr.forEach((conf): void => {
       // 执行名称格式化函数
@@ -686,6 +694,7 @@ class Context {
     }
   };
 
+  // 调用公用方法
   public applyMethod: IApplyMethod = (config, ...args) => {
     const [methodName, pluginName] = Array.isArray(config) ? config : [config];
     if (this.methodRegistration[methodName]) {
@@ -816,6 +825,7 @@ class Context {
     this.registerConfig('userConfig', args);
   };
 
+  // 判断是否已注册过配置
   public hasRegistration = (name: string, type: 'cliOption' | 'userConfig' = 'userConfig' ): boolean => {
     const mappedType = type === 'cliOption' ? 'cliOptionRegistration' : 'userConfigRegistration';
     return Object.keys(this[mappedType] || {}).includes(name);
